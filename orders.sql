@@ -17,6 +17,16 @@ create table if not exists public.orders (
 );
 alter table public.orders enable row level security;
 
+-- 로그인한 회원의 주문과 연결 (로그인 없이 신청한 주문은 비어 있어요)
+alter table public.orders add column if not exists user_id uuid references auth.users(id) on delete set null;
+create index if not exists orders_user_idx on public.orders (user_id);
+
+-- 회원은 본인 주문만 읽을 수 있어요.
+drop policy if exists orders_select_own on public.orders;
+create policy orders_select_own on public.orders
+  for select to authenticated
+  using (user_id = auth.uid());
+
 -- 표를 직접 읽고 쓰는 건 관리자만 가능해요. (손님은 아래 함수로만 접근)
 drop policy if exists orders_admin_all on public.orders;
 create policy orders_admin_all on public.orders
@@ -45,9 +55,26 @@ as $$
 begin
   if p_no is null or p_no !~ '^[A-Za-z0-9-]{3,30}$' then return; end if;
   if p_last4 is null or p_last4 !~ '^[0-9]{4}$' then return; end if;
-  insert into public.orders (order_no, phone_last4, tier)
-  values (upper(p_no), p_last4, left(coalesce(p_tier, ''), 40))
+  insert into public.orders (order_no, phone_last4, tier, user_id)
+  values (upper(p_no), p_last4, left(coalesce(p_tier, ''), 40), auth.uid())
   on conflict (order_no) do nothing;
+end $$;
+
+-- 로그인 없이 신청한 예전 주문을 내 계정에 붙이기 (접수번호 + 전화 뒤 4자리가 맞고, 주인이 없을 때만)
+create or replace function public.claim_order(p_no text, p_last4 text)
+returns boolean
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare n int;
+begin
+  if auth.uid() is null then return false; end if;
+  update public.orders set user_id = auth.uid()
+  where order_no = upper(trim(p_no)) and phone_last4 = trim(p_last4)
+    and (user_id is null or user_id = auth.uid());
+  get diagnostics n = row_count;
+  return n > 0;
 end $$;
 
 -- 3) 손님 조회 (접수번호 + 전화번호 뒤 4자리가 모두 맞을 때만, 상태·송장만 돌려줘요) --
@@ -68,3 +95,5 @@ revoke all on function public.register_order(text, text, text) from public;
 revoke all on function public.track_order(text, text) from public;
 grant execute on function public.register_order(text, text, text) to anon, authenticated;
 grant execute on function public.track_order(text, text) to anon, authenticated;
+revoke all on function public.claim_order(text, text) from public;
+grant execute on function public.claim_order(text, text) to authenticated;

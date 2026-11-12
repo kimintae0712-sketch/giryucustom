@@ -612,6 +612,11 @@ header .btn{border:0;background:none;padding:6px 0;font-size:16px;font-weight:40
 .pnew .pnewIn b{font-size:15px;font-weight:800}.pnew .pnewIn small{font-size:12.5px;color:var(--ink-2);line-height:1.5}
 .pnew .pn{color:var(--tint);font-weight:600}
 /* ===== 회원·후기 ===== */
+/* ===== 편집툴 반영 ===== */
+.stNotice{margin:8px 2px 0;padding:10px 14px;border-radius:12px;background:rgba(0,122,255,.1);color:var(--tint);font-size:13.5px;font-weight:600;line-height:1.45;word-break:keep-all}
+.pitem.soldout .pimg img{opacity:.45}.pitem .sold{position:absolute;left:8px;top:8px;background:rgba(0,0,0,.65);color:#fff;font-size:11px;font-weight:700;padding:3px 8px;border-radius:99px}
+.itPh{display:grid;gap:8px;margin-bottom:12px}.itPh img{width:100%;border-radius:14px;display:block}
+.itPrice{font-size:20px;font-weight:800;margin:4px 0 10px}.itDesc{white-space:pre-wrap;word-break:keep-all;line-height:1.65;color:var(--ink-2);font-size:14.5px;margin:0 0 16px}
 .trCard{background:var(--paper);border-radius:14px;padding:16px;margin-top:14px}.trCard h4{margin:0 0 12px;font-size:16px}
 .trSteps{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(5,1fr);gap:4px;text-align:center}
 .trSteps li{font-size:11.5px;color:var(--ink-2);padding-top:18px;position:relative}
@@ -1961,6 +1966,10 @@ function buildStore(){const g=$('#pgrid');g.innerHTML='';$('#homeRvList').innerH
   if(typeof src==='string'&&src)b.querySelector('img').src=src;b.querySelector('img').alt=P.n;
   b.querySelector('.pn').textContent=P.n;b.querySelector('.pp').textContent=won(P.price);b.querySelector('.ps').textContent='배송 '+won(3000);const rl=REVIEWS.filter(r=>r.p==null||r.p===i);b.querySelector('.pr').textContent=rl.length?'★ '+(rl.reduce((a,r)=>a+(r.rate||5),0)/rl.length).toFixed(1)+' · 후기 '+rl.length:'';
   b.onclick=()=>openPdp(i);g.appendChild(b)});
+  if((SHOP_ITEMS||[]).length){const h=document.createElement('div');h.className='stSec';h.style.gridColumn='1/-1';h.style.marginTop='10px';h.innerHTML='<h3>소품</h3><span>기류가 만든 작은 것들</span>';g.appendChild(h)}
+  (SHOP_ITEMS||[]).forEach(it=>{const b=document.createElement('button');b.type='button';b.className='pitem'+(it.status==='soldout'?' soldout':'');
+    b.innerHTML='<span class="pimg"><img alt="">'+(it.status==='soldout'?'<span class="sold">품절</span>':'')+'</span><span class="pn"></span><span class="pp"></span><span class="ps">소품</span><span class="pr"></span>';
+    const im=b.querySelector('img');im.alt=it.name;if(it.photos&&it.photos[0])im.src=it.photos[0];b.querySelector('.pn').textContent=it.name;b.querySelector('.pp').textContent=won(it.price);b.onclick=()=>openItem(it);g.appendChild(b)});
   {const t=document.createElement('a');t.className='pitem pnew';t.href='https://instagram.com/giryu.kr';t.target='_blank';t.rel='noopener';t.innerHTML='<span class="pimg pnewIn"><b>새 상품 준비 중</b><small>@giryu.kr에서<br>먼저 알려드려요</small></span><span class="pn">팔로우하고 소식 받기</span>';g.appendChild(t)}
   if(REVIEWS.length){$('#homeRv').hidden=false;REVIEWS.slice(0,8).forEach(r=>$('#homeRvList').appendChild(rvCard(r)))}
   const k=Object.keys(BIZ).filter(x=>BIZ[x]);if(k.length){const el=$('#bizFoot');el.hidden=false;el.textContent=k.map(x=>x+' '+BIZ[x]).join(' · ')}}
@@ -2004,6 +2013,30 @@ function sbErr(e){const m=String((e&&e.message)||e||'');
   if(/rate limit|too many|seconds/i.test(m))return '잠시 후 다시 시도해 주세요.';
   if(/Password should be|weak/i.test(m))return '비밀번호가 너무 약해요. 더 길게 만들어 주세요.';
   return '잠시 문제가 생겼어요. 조금 뒤에 다시 시도해 주세요.'}
+
+/* ===== 편집툴 반영: 공지·가격·소품 ===== */
+var SHOP_ITEMS=[];
+function swapText(from,to){if(!from||from===to)return;const w=document.createTreeWalker(document.body,NodeFilter.SHOW_TEXT);const hits=[];let n;while(n=w.nextNode()){if(n.nodeValue.indexOf(from)>=0&&!/^(SCRIPT|STYLE)$/.test(n.parentNode.nodeName))hits.push(n)}hits.forEach(x=>{x.nodeValue=x.nodeValue.split(from).join(to)})}
+function applyTiers(v){if(!v)return;const nm=['베이직','스탠다드','프리미엄'];
+  for(let i=0;i<3;i++){const o=v[i]||v[String(i)];if(!o)continue;const price=parseInt(o.price,10);
+    if(price>=0&&price<=10000000&&price!==CF_TIERS[i].price){const oldV=CF_TIERS[i].v,newV=nm[i]+' '+price.toLocaleString('ko-KR')+'원';
+      CF_TIERS[i].price=price;CF_TIERS[i].v=newV;PRODUCTS[i].price=price;swapText(oldV,newV);if(CF.tier===oldV)CF.tier=newV}
+    if(o.lead&&String(o.lead).trim())PRODUCTS[i].lead=String(o.lead).trim().slice(0,200)}
+}
+function applyNotice(v){let el=$('#stNotice');
+  if(!v||!v.on||!String(v.text||'').trim()){if(el)el.remove();return}
+  if(!el){el=document.createElement('div');el.id='stNotice';el.className='stNotice';el.setAttribute('role','status');const hero=document.querySelector('.stHero');hero.parentNode.insertBefore(el,hero)}
+  el.textContent=String(v.text).trim().slice(0,200)}
+async function loadShop(){try{
+    const st=await SB.from('site_settings').select('*');if(!st.error&&st.data){st.data.forEach(r=>{if(r.key==='notice')applyNotice(r.value);if(r.key==='tiers')applyTiers(r.value)})}
+    const it=await SB.from('shop_items').select('*').order('sort',{ascending:true});if(!it.error&&it.data)SHOP_ITEMS=it.data.filter(x=>x.status!=='hidden');
+    buildStore()}catch(e){}}
+function openItem(it){const w=mk('div');const ph=mk('div','itPh');(it.photos||[]).forEach(u=>{const im=document.createElement('img');im.alt=it.name;im.loading='lazy';im.src=u;ph.appendChild(im)});w.appendChild(ph);
+  const pr=mk('div','itPrice');pr.textContent=won(it.price);w.appendChild(pr);
+  if(it.description){const d=mk('p','itDesc');d.textContent=it.description;w.appendChild(d)}
+  const a=mk('a','cfSubmit',it.status==='soldout'?'품절이에요':'인스타 DM으로 주문 문의');a.style.cssText='display:block;text-align:center;text-decoration:none';
+  if(it.status==='soldout'){a.style.opacity='.5';a.removeAttribute('href')}else{a.href='https://ig.me/m/giryu.kr';a.target='_blank';a.rel='noopener'}
+  w.appendChild(a);const f=mk('p','foot');f.style.margin='10px 4px 0';f.textContent='소품은 DM으로 주문·결제를 도와드려요. 배송비는 별도예요.';w.appendChild(f);sheet(it.name,w)}
 function sheet(title,node){$('#gsTitle').textContent=title;const b=$('#gsBody');b.innerHTML='';b.appendChild(node);gsReturn=document.activeElement;const g=$('#gsheet');g.hidden=false;g.firstElementChild.scrollTop=0}
 function mk(tag,cls,html){const e=document.createElement(tag);if(cls)e.className=cls;if(html!=null)e.innerHTML=html;return e}
 function notice(title,text){const p=mk('p','polTxt');p.textContent=text;sheet(title,p)}
@@ -2013,7 +2046,7 @@ function sbBoot(){if(!SB_ON)return;const go=()=>{SB=window.supabase.createClient
   const sc=document.createElement('script');sc.src='https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2';sc.onload=go;document.head.appendChild(sc)}
 async function sbInit(){try{const {data}=await SB.auth.getSession();await setMe(data&&data.session);
     SB.auth.onAuthStateChange((ev,sess)=>{setTimeout(()=>{setMe(sess);if(ev==='PASSWORD_RECOVERY')openNewPw()},0)})}catch(e){}
-  await loadReviews()}
+  await loadReviews();await loadShop()}
 async function setMe(sess){ME=sess&&sess.user?sess.user:null;MYPROF=null;
   if(ME){try{const {data}=await SB.from('profiles').select('nickname,is_admin').eq('id',ME.id).maybeSingle();MYPROF=data||null}catch(e){}}renderLogin()}
 async function loadReviews(){try{const {data,error}=await SB.from('reviews_public').select('*').order('created_at',{ascending:false}).limit(100);if(error)throw error;
@@ -2060,10 +2093,18 @@ function openPolicy(){const d=mk('div','polTxt');
   d.innerHTML='<h4>수집하는 개인정보</h4>이메일, 닉네임, 비밀번호(암호화되어 저장), 후기 내용·사진, 후기 작성 시 입력한 접수번호예요.<h4>이용 목적</h4>회원 확인, 후기 작성·게시, 주문 확인, 문의 응대예요.<h4>보유 기간</h4>회원 탈퇴 시까지 보관하고, 법령에서 보관을 요구하는 정보는 그 기간 동안 보관해요.<h4>동의 거부</h4>동의를 거부할 수 있지만, 회원가입과 후기 작성은 할 수 없어요. 주문은 회원가입 없이도 할 수 있어요.<h4>처리 위탁</h4>데이터 저장과 로그인 처리를 위해 Supabase를 이용해요.<h4>후기 게시</h4>후기는 작성 후 기류가 확인한 뒤 게시돼요. 사진과 후기는 사이트와 기류 인스타그램에 소개될 수 있고, 작성할 때 따로 동의를 받아요.<h4>탈퇴·정정·삭제</h4>인스타그램 @giryu.kr DM으로 요청해 주세요.';
   sheet('이용약관·개인정보 안내',d)}
 async function openMy(){const w=mk('div');
-  w.innerHTML='<div class="cfSec"><div class="cfBox"><div class="cfRow"><span>닉네임</span><b id="myNick"></b></div><div class="cfRow"><span>이메일</span><b id="myMail" style="font-weight:500;word-break:break-all"></b></div></div></div><div id="myAdmin"></div><h3 class="shopH" style="margin:6px 4px 8px">내 후기</h3><div id="myRv"><p class="foot" style="margin:0 4px">불러오는 중…</p></div><button type="button" class="cfBtn2" id="myOut" style="margin-top:14px">로그아웃</button><p class="foot" style="margin:12px 4px 0;font-size:12.5px;color:var(--ink-2)">탈퇴·정보 삭제는 인스타그램 @giryu.kr DM으로 요청해 주세요.</p>';
+  w.innerHTML='<div class="cfSec"><div class="cfBox"><div class="cfRow"><span>닉네임</span><b id="myNick"></b></div><div class="cfRow"><span>이메일</span><b id="myMail" style="font-weight:500;word-break:break-all"></b></div></div></div><div id="myAdmin"></div><h3 class="shopH" style="margin:6px 4px 8px">내 주문</h3><div id="myOrd"><p class="foot" style="margin:0 4px">불러오는 중…</p></div><div class="cfSec" style="margin-top:8px"><div class="cfBox"><label class="cfRow"><span>접수번호</span><input id="clNo" placeholder="예전 주문을 내 계정에 추가" autocapitalize="characters" autocomplete="off"></label><label class="cfRow"><span>전화 뒤 4자리</span><input id="clTel" inputmode="numeric" maxlength="4" placeholder="0000" autocomplete="off"></label></div></div><p class="cfErr" id="clErr" role="alert"></p><button type="button" class="cfBtn2" id="clGo" style="margin-bottom:14px">내 주문에 추가</button><h3 class="shopH" style="margin:6px 4px 8px">내 후기</h3><div id="myRv"><p class="foot" style="margin:0 4px">불러오는 중…</p></div><button type="button" class="cfBtn2" id="myOut" style="margin-top:14px">로그아웃</button><p class="foot" style="margin:12px 4px 0;font-size:12.5px;color:var(--ink-2)">탈퇴·정보 삭제는 인스타그램 @giryu.kr DM으로 요청해 주세요.</p>';
   sheet('내 정보',w);$('#myNick').textContent=(MYPROF&&MYPROF.nickname)||'';$('#myMail').textContent=ME.email||'';
   if(MYPROF&&MYPROF.is_admin){const a=mk('a','cfBtn2','후기 관리 열기');a.href='admin.html';a.style.margin='0 0 14px';a.style.textDecoration='none';$('#myAdmin').appendChild(a)}
   $('#myOut').onclick=async()=>{await SB.auth.signOut();closeGuide()};
+  const loadOrd=async()=>{const box=$('#myOrd');if(!box)return;try{const {data,error}=await SB.from('orders').select('*').eq('user_id',ME.id).order('created_at',{ascending:false});if(error)throw error;
+      box.innerHTML='';if(!data||!data.length){box.innerHTML='<p class="foot" style="margin:0 4px">연결된 주문이 없어요. 로그인한 상태로 신청하면 자동으로 보여요.</p>';return}
+      data.forEach(o=>{const wrap=mk('div');const h=mk('div','foot');h.style.margin='10px 4px 0';h.textContent='접수번호 '+o.order_no;wrap.appendChild(h);wrap.appendChild(trackCard(o));box.appendChild(wrap)})}catch(e){box.innerHTML='<p class="foot" style="margin:0 4px">주문을 불러오지 못했어요.</p>'}};
+  loadOrd();
+  $('#clGo').onclick=async()=>{const e=$('#clErr');e.textContent='';const no=$('#clNo').value.trim(),tel=$('#clTel').value.trim();
+    if(no.length<3||!/^\d{4}$/.test(tel)){e.textContent='접수번호와 전화 뒤 4자리를 확인해 주세요.';return}
+    const r=await SB.rpc('claim_order',{p_no:no,p_last4:tel});if(r.error||!r.data){e.textContent='일치하는 주문을 찾지 못했거나 이미 다른 계정에 연결돼 있어요.';return}
+    $('#clNo').value='';$('#clTel').value='';loadOrd()};
   try{const {data,error}=await SB.from('reviews').select('id,rating,product,content,status,created_at').eq('user_id',ME.id).order('created_at',{ascending:false});if(error)throw error;
     const box=$('#myRv');box.innerHTML='';if(!data||!data.length){box.innerHTML='<p class="foot" style="margin:0 4px">아직 작성한 후기가 없어요.</p>';return}
     const L={pending:['확인 중','wait'],approved:['게시됨','ok'],hidden:['비공개','']};
@@ -2103,15 +2144,17 @@ function openTrack(){
   const w=mk('div');
   w.innerHTML='<div class="cfSec"><div class="cfBox"><label class="cfRow"><span>접수번호</span><input id="trNo" placeholder="예: C-1112-1530" autocapitalize="characters" autocomplete="off"></label><label class="cfRow"><span>전화 뒤 4자리</span><input id="trTel" inputmode="numeric" maxlength="4" placeholder="0000" autocomplete="off"></label></div><p class="foot">신청할 때 적은 연락처의 뒤 4자리예요. 접수번호는 신청 완료 화면에 나온 번호예요.</p></div><p class="cfErr" id="trErr" role="alert"></p><button type="button" class="cfSubmit" id="trGo" style="margin-top:6px">조회하기</button><div id="trOut"></div>';
   sheet('주문조회',w);
-  const go=async()=>{const no=$('#trNo').value.trim(),tel=$('#trTel').value.trim(),err=$('#trErr'),out=$('#trOut');err.textContent='';out.innerHTML='';
+  const go=async(quiet)=>{const no=$('#trNo').value.trim(),tel=$('#trTel').value.trim(),err=$('#trErr'),out=$('#trOut');if(quiet!==true){err.textContent='';out.innerHTML=''}
     if(no.length<3){err.textContent='접수번호를 적어주세요.';return}
     if(!/^\d{4}$/.test(tel)){err.textContent='전화번호 뒤 4자리를 숫자로 적어주세요.';return}
-    $('#trGo').disabled=true;let res;try{res=await SB.rpc('track_order',{p_no:no,p_last4:tel})}catch(e){res={error:e}}$('#trGo').disabled=false;
-    if(res.error){err.textContent='조회하지 못했어요. 잠시 뒤에 다시 시도해 주세요.';return}
+    if(quiet!==true)$('#trGo').disabled=true;let res;try{res=await SB.rpc('track_order',{p_no:no,p_last4:tel})}catch(e){res={error:e}}$('#trGo').disabled=false;
+    if(res.error){if(quiet!==true)err.textContent='조회하지 못했어요. 잠시 뒤에 다시 시도해 주세요.';return}
     const r=Array.isArray(res.data)?res.data[0]:res.data;
-    if(!r){err.textContent='일치하는 주문이 없어요. 접수번호와 뒤 4자리를 확인해 주세요. 방금 신청했다면 잠시 뒤에 다시 조회해 주세요.';return}
-    out.appendChild(trackCard(r))};
-  $('#trGo').onclick=go;w.querySelectorAll('input').forEach(i=>i.addEventListener('keydown',e=>{if(e.key==='Enter')go()}))}
+    if(!r){if(quiet!==true)err.textContent='일치하는 주문이 없어요. 접수번호와 뒤 4자리를 확인해 주세요. 방금 신청했다면 잠시 뒤에 다시 조회해 주세요.';return}
+    out.replaceChildren(trackCard(r))};
+  $('#trGo').onclick=()=>go();w.querySelectorAll('input').forEach(i=>i.addEventListener('keydown',e=>{if(e.key==='Enter')go()}))
+  clearInterval(TRK_TIMER);TRK_TIMER=setInterval(()=>{if($('#gsheet').hidden||!$('#trOut')||!$('#trOut').firstChild){clearInterval(TRK_TIMER);return}go(true)},30000)}
+let TRK_TIMER=0;
 function trackCard(r){const c=mk('div','trCard');
   if(r.status==='canceled'){c.innerHTML='<h4>취소된 주문이에요</h4><p class="foot">궁금한 점은 인스타그램 @giryu.kr DM으로 알려주세요.</p>';return c}
   const idx=r.status==='done'?ST_FLOW.length:ST_FLOW.findIndex(x=>x[0]===r.status);
